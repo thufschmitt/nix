@@ -1629,6 +1629,19 @@ void DerivationGoal::buildDone()
            being valid. */
         registerOutputs();
 
+        if (settings.postBuildHook != "") {
+            printMsg(lvlChatty, format("executing post-build hook '%1%'")
+                % settings.postBuildHook);
+            auto outputPaths = drv->outputPaths();
+            Strings args;
+            for (auto outputPath: outputPaths)
+                args.push_front(outputPath);
+            args.push_front("--");
+            args.push_front(drvPath);
+            RunOptions opts(settings.postBuildHook, args);
+            runProgram2(opts);
+        }
+
         if (buildMode == bmCheck) {
             done(BuildResult::Built);
             return;
@@ -2363,6 +2376,7 @@ void DerivationGoal::startBuilder()
         }
         debug(msg);
     }
+
 }
 
 
@@ -4637,3 +4651,4 @@ void LocalStore::repairPath(const Path & path)
 
 
 }
+
