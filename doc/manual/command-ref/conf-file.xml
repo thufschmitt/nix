@@ -656,6 +656,72 @@ password <replaceable>my-password</replaceable>
 
   </varlistentry>
 
+  <varlistentry xml:id="conf-post-build-hook">
+    <term><literal>post-build-hook</literal></term>
+    <listitem>
+      <para>Optional. The path to a program which is executed after
+      each build.</para>
+
+      <para>This option can only be set in the nix.conf, or by trusted
+      users.</para>
+
+      <para>If the nix-daemon is used, the daemon executes
+      the hook. If the nix-daemon is not involved, the hook runs as
+      the user executing the nix-build.</para>
+
+      <itemizedlist>
+        <listitem><para>The hook is called after building during evaluation.</para></listitem>
+        <listitem><para>The hook is not called if a build is substituted.</para></listitem>
+        <listitem><para>If using the Nix daemon, the hook's output goes to the daemon's log.</para></listitem>
+        <listitem><para>If the hook fails, the build succeeds but no further builds execute.</para></listitem>
+      </itemizedlist>
+
+      <warning><para>If the nix-daemon performs the build, the
+      <option>post-build-hook</option> program executes as root.
+      </para></warning>
+
+      <para>The program is executed with the following arguments:</para>
+
+      <variablelist>
+        <varlistentry>
+          <term>derivation</term>
+          <listitem>
+            <para>The derivation which was built.</para>
+          </listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><literal>--</literal></term>
+          <listitem>
+            <para>A literal <literal>--</literal>.</para>
+            <note><para>Hooks must iterate through the arguments to
+            find the <literal>--</literal> argument, to support
+            possible improvements to the hook interface.</para>
+
+            <para>In the future, Nix may pass additional arguments
+            before the <literal>--</literal>. Nix guarantees the order
+            of arguments before the <literal>--</literal> will never
+            change, however new arguments may be added.
+            </para>
+          </note>
+          </listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term>output paths</term>
+          <listitem>
+            <para>All remaining arguments to the hook are output
+            paths of the built derivation.</para>
+          </listitem>
+        </varlistentry>
+      </variablelist>
+
+      <para>See <xref linkend="chap-post-build-hook" /> for an example
+      implementation.</para>
+
+    </listitem>
+  </varlistentry>
+
   <varlistentry xml:id="conf-repeat"><term><literal>repeat</literal></term>
 
     <listitem><para>How many times to repeat builds to check whether
