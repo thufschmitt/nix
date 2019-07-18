@@ -1589,12 +1589,12 @@ void DerivationGoal::buildDone()
             printMsg(lvlChatty, format("executing post-build hook '%1%'")
                 % settings.postBuildHook);
             auto outputPaths = drv->outputPaths();
-            Strings args;
-            for (auto outputPath: outputPaths)
-                args.push_front(outputPath);
-            args.push_front("--");
-            args.push_front(drvPath);
-            RunOptions opts(settings.postBuildHook, args);
+            std::map<std::string, std::string> hookEnvironment = getEnv();
+            hookEnvironment.emplace("DRV_PATH", drvPath);
+            hookEnvironment.emplace("OUT_PATHS", chomp(concatStringsSep(":", outputPaths)));
+
+            RunOptions opts(settings.postBuildHook, {});
+            opts.environment = hookEnvironment;
             runProgram2(opts);
         }
 
