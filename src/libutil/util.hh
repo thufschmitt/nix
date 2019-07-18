@@ -264,6 +264,7 @@ string runProgram(Path program, bool searchPath = false,
 
 struct RunOptions
 {
+    std::experimental::optional<std::map<std::string, std::string>> environment;
     Path program;
     bool searchPath = true;
     Strings args;

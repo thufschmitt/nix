@@ -613,38 +613,21 @@ password <replaceable>my-password</replaceable>
       <option>post-build-hook</option> program executes as root.
       </para></warning>
 
-      <para>The program is executed with the following arguments:</para>
+      <para>The program is executed with no argument, but with the following
+        environment variables set:</para>
 
       <variablelist>
         <varlistentry>
-          <term>derivation</term>
+          <term><envar>DRV_PATH</envar></term>
           <listitem>
             <para>The derivation which was built.</para>
           </listitem>
         </varlistentry>
 
         <varlistentry>
-          <term><literal>--</literal></term>
+          <term><envar>OUT_PATHS</envar></term>
           <listitem>
-            <para>A literal <literal>--</literal>.</para>
-            <note><para>Hooks must iterate through the arguments to
-            find the <literal>--</literal> argument, to support
-            possible improvements to the hook interface.</para>
-
-            <para>In the future, Nix may pass additional arguments
-            before the <literal>--</literal>. Nix guarantees the order
-            of arguments before the <literal>--</literal> will never
-            change, however new arguments may be added.
-            </para>
-          </note>
-          </listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term>output paths</term>
-          <listitem>
-            <para>All remaining arguments to the hook are output
-            paths of the built derivation.</para>
+            <para>Output paths of the built derivation.</para>
           </listitem>
         </varlistentry>
       </variablelist>

@@ -72,17 +72,12 @@ trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDS
 
 set -eu
 
-# Shift off arguments to the hook until the only remaining arguments
-# are output paths
-while [ "${1:---}" != "--" ]; do
-  shift
-done
-shift # pop off the "--"
+ALL_OUT_PATHS=$(echo $OUT_PATHS | tr ':' ' ')
 
-echo "Signing paths" "$@"
-nix sign-paths --key-file /etc/nix/key.secret "$@"
-echo "Uploading paths" "$@"
-exec nix copy --to 's3://example-nix-cache' "$@"
+echo "Signing paths" $ALL_OUT_PATHS
+nix sign-paths --key-file /etc/nix/key.secret $ALL_OUT_PATHS
+echo "Uploading paths" $ALL_OUT_PATHS
+exec nix copy --to 's3://example-nix-cache' $ALL_OUT_PATHS
 </programlisting>
 
   <para>The hook ignores all the informational arguments, skipping to
