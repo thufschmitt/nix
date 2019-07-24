@@ -25,6 +25,7 @@ typedef enum {
     actVerifyPaths = 107,
     actSubstitute = 108,
     actQueryPathInfo = 109,
+    actPostBuildHook = 110,
 } ActivityType;
 
 typedef enum {

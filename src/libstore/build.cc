@@ -1588,6 +1588,8 @@ void DerivationGoal::buildDone()
         if (settings.postBuildHook != "") {
             printMsg(lvlChatty, format("executing post-build hook '%1%'")
                 % settings.postBuildHook);
+            Activity act(*logger, actPostBuildHook, Logger::Fields{drvPath});
+            PushActivity pact(act.id);
             auto outputPaths = drv->outputPaths();
             std::map<std::string, std::string> hookEnvironment = getEnv();
             hookEnvironment.emplace("DRV_PATH", drvPath);
