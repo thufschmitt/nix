@@ -214,13 +214,13 @@ LocalStore::LocalStore(const Params & params)
 
     /* Prepare SQL statements. */
     state->stmtRegisterValidPath.create(state->db,
-        "insert into ValidPaths (path, hash, registrationTime, deriver, narSize, ultimate, sigs, ca) values (?, ?, ?, ?, ?, ?, ?, ?);");
+        "insert into ValidPaths (path, hash, registrationTime, deriver, narSize, ultimate, sigs, ca, aliasTo) values (?, ?, ?, ?, ?, ?, ?, ?, ?);");
     state->stmtUpdatePathInfo.create(state->db,
-        "update ValidPaths set narSize = ?, hash = ?, ultimate = ?, sigs = ?, ca = ? where path = ?;");
+        "update ValidPaths set narSize = ?, hash = ?, ultimate = ?, sigs = ?, ca = ?, aliasTo = ? where path = ?;");
     state->stmtAddReference.create(state->db,
         "insert or replace into Refs (referrer, reference) values (?, ?);");
     state->stmtQueryPathInfo.create(state->db,
-        "select id, hash, registrationTime, deriver, narSize, ultimate, sigs, ca from ValidPaths where path = ?;");
+        "select id, hash, registrationTime, deriver, narSize, ultimate, sigs, ca, aliasTo from ValidPaths where path = ?;");
     state->stmtQueryReferences.create(state->db,
         "select path from Refs join ValidPaths on reference = id where referrer = ?;");
     state->stmtQueryReferrers.create(state->db,
@@ -593,6 +593,7 @@ uint64_t LocalStore::addValidPath(State & state,
         (info.ultimate ? 1 : 0, info.ultimate)
         (concatStringsSep(" ", info.sigs), !info.sigs.empty())
         (info.ca, !info.ca.empty())
+        (info.aliasTo, !info.aliasTo.empty())
         .exec();
     uint64_t id = sqlite3_last_insert_rowid(state.db);
 
@@ -692,6 +693,7 @@ void LocalStore::updatePathInfo(State & state, const ValidPathInfo & info)
         (info.ultimate ? 1 : 0, info.ultimate)
         (concatStringsSep(" ", info.sigs), !info.sigs.empty())
         (info.ca, !info.ca.empty())
+        (info.aliasTo, !info.aliasTo.empty())
         (info.path)
         .exec();
 }

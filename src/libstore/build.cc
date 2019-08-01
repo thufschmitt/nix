@@ -1,4 +1,5 @@
 #include "references.hh"
+#include "store-api.hh"
 #include "pathlocks.hh"
 #include "globals.hh"
 #include "local-store.hh"
@@ -13,6 +14,7 @@
 #include "nar-info.hh"
 #include "parsed-derivations.hh"
 #include "machines.hh"
+#include "rewrite-derivation.hh"
 
 #include <algorithm>
 #include <iostream>
@@ -728,20 +730,6 @@ HookInstance::~HookInstance()
 //////////////////////////////////////////////////////////////////////
 
 
-typedef map<std::string, std::string> StringRewrites;
-
-
-std::string rewriteStrings(std::string s, const StringRewrites & rewrites)
-{
-    for (auto & i : rewrites) {
-        size_t j = 0;
-        while ((j = s.find(i.first, j)) != string::npos)
-            s.replace(j, i.first.size(), i.second);
-    }
-    return s;
-}
-
-
 //////////////////////////////////////////////////////////////////////
 
 
@@ -839,6 +827,8 @@ private:
 
     /* Whether this is a fixed-output derivation. */
     bool fixedOutput;
+
+    bool contentAddressed;
 
     /* Whether to run the build in a private network namespace. */
     bool privateNetwork = false;
@@ -1380,12 +1370,21 @@ void DerivationGoal::inputsRealised()
     /* Second, the input sources. */
     worker.store.computeFSClosure(drv->inputSrcs, inputPaths);
 
+    bool hasChanged = rebuildDrvForCasInputs(&worker.store, drv.get());
+
+    if (hasChanged) {
+        haveDerivation();
+        return;
+    }
+
     debug(format("added input paths %1%") % showPaths(inputPaths));
 
     allPaths.insert(inputPaths.begin(), inputPaths.end());
 
     /* Is this a fixed-output derivation? */
     fixedOutput = drv->isFixedOutput();
+
+    contentAddressed = drv->isContentAddressed();
 
     /* Don't repeat fixed-output derivations since they're already
        verified by their output hash.*/
@@ -3275,6 +3274,44 @@ void DerivationGoal::registerOutputs()
             rewritten = true;
         }
 
+        /* Redirect the outputs to their content-hash path if we're
+         * content-addressed */
+        if (contentAddressed) {
+            debug("Moving to its actual location");
+            bool recursive = true;
+            HashType hashAlgo = htSHA256;
+
+            Hash contentHash = hashPath(hashAlgo, actualPath).first;
+
+            Path dest = worker.store.makeFixedOutputPath(recursive, contentHash, storePathToName(path));
+
+            if (!pathExists(dest)) {
+                StringSink sink;
+                dumpPath(actualPath, sink);
+                StringSource source(*sink.s);
+                restorePath(dest, source);
+            };
+            deletePath(actualPath);
+            /* createSymlink(dest, actualPath); */
+            writeFile(actualPath, dest);
+
+            ValidPathInfo infoCasPath;
+            HashResult hash;
+            PathSet references = scanForReferences(actualPath, allPaths, hash);
+
+            infoCasPath.path = dest;
+            infoCasPath.narHash = hash.first;
+            infoCasPath.narSize = hash.second;
+            infoCasPath.references = references;
+            infoCasPath.deriver = drvPath;
+            infoCasPath.ultimate = true;
+            /* infoCasPath.ca = makeFixedOutputCA(recursive, contentHash); */
+            worker.store.signPathInfo(infoCasPath);
+
+            info.aliasTo = dest;
+            infos["cas"] = infoCasPath;
+        }
+
         /* Check that fixed-output derivations produced the right
            outputs (i.e., the content hash should match the specified
            hash). */
@@ -3464,7 +3501,10 @@ void DerivationGoal::registerOutputs()
        outputs, this will fail. */
     {
         ValidPathInfos infos2;
-        for (auto & i : infos) infos2.push_back(i.second);
+        for (auto & i : infos) {
+          infos2.push_back(i.second);
+          debug(format("Registering path %1%") % i.first);
+        }
         worker.store.registerValidPaths(infos2);
     }
 

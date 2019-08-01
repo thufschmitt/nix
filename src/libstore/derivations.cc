@@ -121,7 +121,7 @@ static StringSet parseStrings(std::istream & str, bool arePaths)
 }
 
 
-static Derivation parseDerivation(const string & s)
+Derivation parseDerivation(const string & s)
 {
     Derivation drv;
     istringstream_nocopy str(s);
@@ -412,5 +412,20 @@ std::string hashPlaceholder(const std::string & outputName)
     return "/" + hashString(htSHA256, "nix-output:" + outputName).to_string(Base32, false);
 }
 
+
+bool BasicDerivation::getBoolAttr(const std::string & name, bool def) const
+{
+    auto i = env.find(name);
+    if (i == env.end())
+        return def;
+    else
+        return i->second == "1";
+}
+
+
+bool BasicDerivation::isContentAddressed() const
+{
+    return getBoolAttr("contentAddressed");
+}
 
 }

@@ -48,11 +48,7 @@ bool ParsedDerivation::getBoolAttr(const std::string & name, bool def) const
             return i->get<bool>();
         }
     } else {
-        auto i = drv.env.find(name);
-        if (i == drv.env.end())
-            return def;
-        else
-            return i->second == "1";
+        return drv.getBoolAttr(name, def);
     }
 }
 

@@ -7,7 +7,8 @@ create table if not exists ValidPaths (
     narSize          integer,
     ultimate         integer, -- null implies "false"
     sigs             text, -- space-separated
-    ca               text -- if not null, an assertion that the path is content-addressed; see ValidPathInfo
+    ca               text, -- if not null, an assertion that the path is content-addressed; see ValidPathInfo
+    aliasTo            text -- If not null, tells that this store path is just an alias to another one (used for cas paths in particular)
 );
 
 create table if not exists Refs (

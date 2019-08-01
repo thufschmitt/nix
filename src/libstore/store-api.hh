@@ -157,6 +157,8 @@ struct ValidPathInfo
     */
     std::string ca;
 
+    std::string aliasTo;
+
     bool operator == (const ValidPathInfo & i) const
     {
         return

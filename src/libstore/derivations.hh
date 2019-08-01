@@ -61,6 +61,10 @@ struct BasicDerivation
     /* Return true iff this is a fixed-output derivation. */
     bool isFixedOutput() const;
 
+    bool getBoolAttr(const std::string & name, bool def = false) const;
+
+    bool isContentAddressed() const;
+
     /* Return the output paths of a derivation. */
     PathSet outputPaths() const;
 
@@ -81,6 +85,9 @@ class Store;
 /* Write a derivation to the Nix store, and return its path. */
 Path writeDerivation(ref<Store> store,
     const Derivation & drv, const string & name, RepairFlag repair = NoRepair);
+
+/* Read a derivation from a string */
+Derivation parseDerivation(const string & s);
 
 /* Read a derivation from a file. */
 Derivation readDerivation(const Path & drvPath);
