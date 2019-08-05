@@ -6,9 +6,6 @@ namespace nix {
 
 using namespace std;
 
-typedef std::map<Path, Path> PathMap;
-
-
 string replaceSubString(string s, const string toReplace, const string replacement)
 {
     size_t j = 0;
@@ -43,7 +40,8 @@ void addInputSrc(Derivation* drv, const Path newInputSrc) {
     drv->inputSrcs.insert(newInputSrc);
 }
 
-void recomputeOutputPaths(LocalStore* store, Derivation* drv) {
+void recomputeOutputPaths(LocalStore* store, Derivation* drv, OutLink &wantedAliases) {
+    auto oldOutputs = drv->outputs;
     for (auto & output: drv->outputs) {
         // XXX: This should only be set if `structuredAttrs` is false
         drv->env[output.first] = "";
@@ -53,12 +51,14 @@ void recomputeOutputPaths(LocalStore* store, Derivation* drv) {
     Hash h = hashDerivationModulo(*store, *drv);
 
     for (auto & i : drv->outputs) {
-        if (i.second.path == "") {
-            Path outPath = store->makeOutputPath(i.first, h, "simple-content-addressed");
-            drv->env[i.first] = outPath;
-            i.second.path = outPath;
-            debug(format("Rewrote the path %1% as %2%") % i.first % outPath);
-        }
+        Path outPath = store->makeOutputPath(i.first, h, "simple-content-addressed");
+        drv->env[i.first] = outPath;
+        i.second.path = outPath;
+        debug(format("Rewrote the path %1% as %2%") % i.first % outPath);
+    }
+
+    for (auto & oldOutput: oldOutputs) {
+        wantedAliases.insert_or_assign(oldOutput.first, oldOutput.second.path);
     }
 
     debug(drv->unparse());
@@ -103,7 +103,7 @@ bool replacePathIfAlias(Derivation * drv, LocalStore* store, const Path inputDrv
  *
  * Returns true iff the drv has been modified
 **/
-bool rebuildDrvForCasInputs(LocalStore* store, BasicDerivation* drv)
+bool rebuildDrvForCasInputs(LocalStore* store, BasicDerivation* drv, OutLink &wantedAliases)
 {
     auto real_drv = dynamic_cast<Derivation *>(drv);
     bool hasBeenModified = false;
@@ -123,7 +123,7 @@ bool rebuildDrvForCasInputs(LocalStore* store, BasicDerivation* drv)
         }
     }
 
-    recomputeOutputPaths(store, real_drv);
+    recomputeOutputPaths(store, real_drv, wantedAliases);
 
     return hasBeenModified;
 }

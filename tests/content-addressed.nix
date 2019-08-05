@@ -10,7 +10,7 @@ let
   };
   dep = mkDerivation {
     name = "content-addressed-dependency";
-    buildCommand = "sleep 5 && echo ${ca}/hello > $out";
+    buildCommand = "cat ${ca}/hello && echo ${ca}/hello > $out";
   };
   /* Building this will fail because `dep` isn't written at the right place in
   the store nor correctly registered in the DB */
@@ -19,4 +19,4 @@ let
     buildCommand = "cat ${dep} > $out";
   };
 in
-dep
+dep2

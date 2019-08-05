@@ -750,6 +750,9 @@ private:
        them. */
     StringSet wantedOutputs;
 
+    /* Paths to alias after the build */
+    map<std::string, Path> wantedAliases;
+
     /* Whether additional wanted outputs have been added. */
     bool needRestart = false;
 
@@ -1370,7 +1373,7 @@ void DerivationGoal::inputsRealised()
     /* Second, the input sources. */
     worker.store.computeFSClosure(drv->inputSrcs, inputPaths);
 
-    bool hasChanged = rebuildDrvForCasInputs(&worker.store, drv.get());
+    bool hasChanged = rebuildDrvForCasInputs(&worker.store, drv.get(), wantedAliases);
 
     if (hasChanged) {
         haveDerivation();
@@ -3176,7 +3179,6 @@ PathSet parseReferenceSpecifiers(Store & store, const BasicDerivation & drv, con
     return result;
 }
 
-
 void DerivationGoal::registerOutputs()
 {
     /* When using a build hook, the build hook can register the output
@@ -3283,33 +3285,31 @@ void DerivationGoal::registerOutputs()
 
             Hash contentHash = hashPath(hashAlgo, actualPath).first;
 
-            Path dest = worker.store.makeFixedOutputPath(recursive, contentHash, storePathToName(path));
+            Path casPath = worker.store.makeFixedOutputPath(recursive, contentHash, storePathToName(path));
+            debug(casPath);
 
-            if (!pathExists(dest)) {
+            if (!pathExists(casPath)) {
                 StringSink sink;
                 dumpPath(actualPath, sink);
                 StringSource source(*sink.s);
-                restorePath(dest, source);
+                restorePath(casPath, source);
             };
             deletePath(actualPath);
-            /* createSymlink(dest, actualPath); */
-            writeFile(actualPath, dest);
+            /* createSymlink(casPath, actualPath); */
+            writeFile(actualPath, casPath);
 
-            ValidPathInfo infoCasPath;
             HashResult hash;
             PathSet references = scanForReferences(actualPath, allPaths, hash);
 
-            infoCasPath.path = dest;
-            infoCasPath.narHash = hash.first;
-            infoCasPath.narSize = hash.second;
-            infoCasPath.references = references;
-            infoCasPath.deriver = drvPath;
-            infoCasPath.ultimate = true;
-            /* infoCasPath.ca = makeFixedOutputCA(recursive, contentHash); */
-            worker.store.signPathInfo(infoCasPath);
+            ValidPathInfo casInfo;
+            casInfo.path = casPath;
+            casInfo.narHash = hash.first;
+            casInfo.narSize = hash.second;
+            casInfo.references = references;
+            casInfo.deriver = drvPath;
+            infos["alias-" + i.first] = casInfo;
 
-            info.aliasTo = dest;
-            infos["cas"] = infoCasPath;
+            info.aliasTo = casPath;
         }
 
         /* Check that fixed-output derivations produced the right
@@ -3439,6 +3439,15 @@ void DerivationGoal::registerOutputs()
         infos[i.first] = info;
     }
 
+    for (auto alias: wantedAliases) {
+      auto outputName = alias.first;
+      auto outputDesiredPath = alias.second;
+      ValidPathInfo infoAliasPath = infos[outputName];
+      infoAliasPath.path = outputDesiredPath;
+      infoAliasPath.aliasTo = drv->findOutput(outputName);
+      infos[outputName + "-alias"] = infoAliasPath;
+    }
+
     if (buildMode == bmCheck) return;
 
     /* Apply output checks. */
@@ -3503,7 +3512,7 @@ void DerivationGoal::registerOutputs()
         ValidPathInfos infos2;
         for (auto & i : infos) {
           infos2.push_back(i.second);
-          debug(format("Registering path %1%") % i.first);
+          debug(format("Registering path %1% as %2%") % i.first % i.second.path);
         }
         worker.store.registerValidPaths(infos2);
     }
