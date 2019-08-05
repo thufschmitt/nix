@@ -43,6 +43,28 @@ void addInputSrc(Derivation* drv, const Path newInputSrc) {
     drv->inputSrcs.insert(newInputSrc);
 }
 
+void recomputeOutputPaths(LocalStore* store, Derivation* drv) {
+    for (auto & output: drv->outputs) {
+        // XXX: This should only be set if `structuredAttrs` is false
+        drv->env[output.first] = "";
+        output.second = DerivationOutput("", "", "");
+    }
+
+    Hash h = hashDerivationModulo(*store, *drv);
+
+    for (auto & i : drv->outputs) {
+        if (i.second.path == "") {
+            Path outPath = store->makeOutputPath(i.first, h, "simple-content-addressed");
+            drv->env[i.first] = outPath;
+            i.second.path = outPath;
+            debug(format("Rewrote the path %1% as %2%") % i.first % outPath);
+        }
+    }
+
+    debug(drv->unparse());
+
+}
+
 
 bool replacePathIfAlias(Derivation * drv, LocalStore* store, const Path inputDrvPath, Derivation inputDrv, const string outputName)
 {
@@ -95,10 +117,13 @@ bool rebuildDrvForCasInputs(LocalStore* store, BasicDerivation* drv)
         Derivation inDrv = store->derivationFromPath(i.first);
         for (auto& j : i.second) {
             if (inDrv.outputs.find(j) != inDrv.outputs.end()) {
-                hasBeenModified = replacePathIfAlias(real_drv, store, i.first, inDrv, j) || hasBeenModified;
+                bool replacedSomething = replacePathIfAlias(real_drv, store, i.first, inDrv, j);
+                hasBeenModified = hasBeenModified || replacedSomething;
             }
         }
     }
+
+    recomputeOutputPaths(store, real_drv);
 
     return hasBeenModified;
 }

@@ -8,8 +8,15 @@ let
     goodPath = "${path}:${toString builtins.currentTime}";
     contentAddressed = true;
   };
+  dep = mkDerivation {
+    name = "content-addressed-dependency";
+    buildCommand = "sleep 5 && echo ${ca}/hello > $out";
+  };
+  /* Building this will fail because `dep` isn't written at the right place in
+  the store nor correctly registered in the DB */
+  dep2 = mkDerivation {
+    name = "meta-dependency";
+    buildCommand = "cat ${dep} > $out";
+  };
 in
-mkDerivation {
-  name = "content-addressed-dependency";
-  buildCommand = "echo ${ca}/hello > $out";
-}
+dep
