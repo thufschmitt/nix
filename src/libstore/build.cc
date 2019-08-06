@@ -751,7 +751,7 @@ private:
     StringSet wantedOutputs;
 
     /* Paths to alias after the build */
-    map<std::string, Path> wantedAliases;
+    std::set<std::pair<std::string, Path>> wantedAliases;
 
     /* Whether additional wanted outputs have been added. */
     bool needRestart = false;
@@ -3442,10 +3442,16 @@ void DerivationGoal::registerOutputs()
     for (auto alias: wantedAliases) {
       auto outputName = alias.first;
       auto outputDesiredPath = alias.second;
-      ValidPathInfo infoAliasPath = infos[outputName];
-      infoAliasPath.path = outputDesiredPath;
-      infoAliasPath.aliasTo = drv->findOutput(outputName);
-      infos[outputName + "-alias"] = infoAliasPath;
+      auto destinationPath = drv->findOutput(outputName);
+      debug(format("Create an alias from %1% to %2%") % outputDesiredPath % destinationPath);
+
+      if (destinationPath != outputDesiredPath) {
+          writeFile(outputDesiredPath, destinationPath);
+          ValidPathInfo infoAliasPath = infos[outputName];
+          infoAliasPath.path = outputDesiredPath;
+          infoAliasPath.aliasTo = drv->findOutput(outputName);
+          infos[outputName + "-alias"] = infoAliasPath;
+      }
     }
 
     if (buildMode == bmCheck) return;

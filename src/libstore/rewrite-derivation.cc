@@ -41,8 +41,10 @@ void addInputSrc(Derivation* drv, const Path newInputSrc) {
 }
 
 void recomputeOutputPaths(LocalStore* store, Derivation* drv, OutLink &wantedAliases) {
-    auto oldOutputs = drv->outputs;
+    DerivationOutputs oldOutputs = drv->outputs;
     for (auto & output: drv->outputs) {
+        auto pathToAlias = output.second.path;
+        wantedAliases.insert({output.first, pathToAlias});
         // XXX: This should only be set if `structuredAttrs` is false
         drv->env[output.first] = "";
         output.second = DerivationOutput("", "", "");
@@ -54,11 +56,7 @@ void recomputeOutputPaths(LocalStore* store, Derivation* drv, OutLink &wantedAli
         Path outPath = store->makeOutputPath(i.first, h, "simple-content-addressed");
         drv->env[i.first] = outPath;
         i.second.path = outPath;
-        debug(format("Rewrote the path %1% as %2%") % i.first % outPath);
-    }
-
-    for (auto & oldOutput: oldOutputs) {
-        wantedAliases.insert_or_assign(oldOutput.first, oldOutput.second.path);
+        debug(format("Rewrote the path %1% as %2%") % oldOutputs[i.first].path % outPath);
     }
 
     debug(drv->unparse());
