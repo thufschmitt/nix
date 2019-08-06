@@ -965,6 +965,9 @@ private:
        as valid. */
     void registerOutputs();
 
+    void registerPaths(std::map<std::string, ValidPathInfo> infos);
+    void registerAliases();
+
     /* Check that an output meets the requirements specified by the
        'outputChecks' attribute (or the legacy
        '{allowed,disallowed}{References,Requisites}' attributes). */
@@ -1181,6 +1184,8 @@ void DerivationGoal::haveDerivation()
 
     /* If they are all valid, then we're done. */
     if (invalidOutputs.size() == 0 && buildMode == bmNormal) {
+        // Re-register the possibly new links
+        registerAliases();
         done(BuildResult::AlreadyValid);
         return;
     }
@@ -3179,6 +3184,50 @@ PathSet parseReferenceSpecifiers(Store & store, const BasicDerivation & drv, con
     return result;
 }
 
+void DerivationGoal::registerPaths(std::map<std::string, ValidPathInfo> infos)
+{
+    /* Register each output path as valid, and register the sets of
+       paths referenced by each of them.  If there are cycles in the
+       outputs, this will fail. */
+    {
+        ValidPathInfos infos2;
+        for (auto & i : infos) {
+          infos2.push_back(i.second);
+          debug(format("Registering path %1% as %2%") % i.first % i.second.path);
+        }
+        worker.store.registerValidPaths(infos2);
+    }
+}
+
+/**
+ * Register all the required aliases for the newly built derivation.
+ *
+ * This requires that the direct outputs are already registered because we
+ * might want to look them again in the DB
+ */
+void DerivationGoal::registerAliases()
+{
+    map<std::string, ValidPathInfo> infos;
+    for (auto alias: wantedAliases) {
+      auto outputName = alias.first;
+      auto outputDesiredPath = alias.second;
+      auto destinationPath = drv->findOutput(outputName);
+      debug(format("Create an alias from %1% to %2%") % outputDesiredPath % destinationPath);
+
+      if (destinationPath != outputDesiredPath) {
+          auto targetPathInfo = worker.store.queryPathInfo(destinationPath);
+
+          writeFile(outputDesiredPath, destinationPath);
+          ValidPathInfo infoAliasPath = *targetPathInfo;
+          infoAliasPath.path = outputDesiredPath;
+          infoAliasPath.aliasTo = destinationPath;
+          infos[outputName + "-alias"] = infoAliasPath;
+      }
+    }
+    registerPaths(infos);
+}
+
+
 void DerivationGoal::registerOutputs()
 {
     /* When using a build hook, the build hook can register the output
@@ -3439,21 +3488,6 @@ void DerivationGoal::registerOutputs()
         infos[i.first] = info;
     }
 
-    for (auto alias: wantedAliases) {
-      auto outputName = alias.first;
-      auto outputDesiredPath = alias.second;
-      auto destinationPath = drv->findOutput(outputName);
-      debug(format("Create an alias from %1% to %2%") % outputDesiredPath % destinationPath);
-
-      if (destinationPath != outputDesiredPath) {
-          writeFile(outputDesiredPath, destinationPath);
-          ValidPathInfo infoAliasPath = infos[outputName];
-          infoAliasPath.path = outputDesiredPath;
-          infoAliasPath.aliasTo = drv->findOutput(outputName);
-          infos[outputName + "-alias"] = infoAliasPath;
-      }
-    }
-
     if (buildMode == bmCheck) return;
 
     /* Apply output checks. */
@@ -3511,24 +3545,14 @@ void DerivationGoal::registerOutputs()
         }
     }
 
-    /* Register each output path as valid, and register the sets of
-       paths referenced by each of them.  If there are cycles in the
-       outputs, this will fail. */
-    {
-        ValidPathInfos infos2;
-        for (auto & i : infos) {
-          infos2.push_back(i.second);
-          debug(format("Registering path %1% as %2%") % i.first % i.second.path);
-        }
-        worker.store.registerValidPaths(infos2);
-    }
+    registerPaths(infos);
+    registerAliases();
 
     /* In case of a fixed-output derivation hash mismatch, throw an
        exception now that we have registered the output as valid. */
     if (delayedException)
         std::rethrow_exception(delayedException);
 }
-
 
 void DerivationGoal::checkOutputs(const std::map<Path, ValidPathInfo> & outputs)
 {
