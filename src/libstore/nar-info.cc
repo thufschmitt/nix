@@ -73,6 +73,9 @@ NarInfo::NarInfo(const Store & store, const std::string & s, const std::string &
             if (!ca.empty()) corrupt();
             ca = value;
         }
+        else if (name == "AliasTo") {
+            aliasTo = value;
+        }
 
         pos = eol + 1;
     }
@@ -109,6 +112,9 @@ std::string NarInfo::to_string() const
 
     if (!ca.empty())
         res += "CA: " + ca + "\n";
+
+    if (!aliasTo.empty())
+        res += "AliasTo: " + aliasTo + "\n";
 
     return res;
 }

@@ -671,6 +671,9 @@ void LocalStore::queryPathInfoUncached(const Path & path,
             s = (const char *) sqlite3_column_text(state->stmtQueryPathInfo, 7);
             if (s) info->ca = s;
 
+            s = (const char *) sqlite3_column_text(state->stmtQueryPathInfo, 8);
+            if (s) info->aliasTo = s;
+
             /* Get the references. */
             auto useQueryReferences(state->stmtQueryReferences.use()(info->id));
 

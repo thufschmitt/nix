@@ -32,6 +32,7 @@ create table if not exists NARs (
     deriver          text,
     sigs             text,
     ca               text,
+    aliasTo          text,
     timestamp        integer not null,
     present          integer not null,
     primary key (cache, hashPart),
@@ -95,13 +96,13 @@ public:
 
         state->insertNAR.create(state->db,
             "insert or replace into NARs(cache, hashPart, namePart, url, compression, fileHash, fileSize, narHash, "
-            "narSize, refs, deriver, sigs, ca, timestamp, present) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
+            "narSize, refs, deriver, sigs, ca, aliasTo, timestamp, present) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
 
         state->insertMissingNAR.create(state->db,
             "insert or replace into NARs(cache, hashPart, timestamp, present) values (?, ?, ?, 0)");
 
         state->queryNAR.create(state->db,
-            "select present, namePart, url, compression, fileHash, fileSize, narHash, narSize, refs, deriver, sigs, ca from NARs where cache = ? and hashPart = ? and ((present = 0 and timestamp > ?) or (present = 1 and timestamp > ?))");
+            "select present, namePart, url, compression, fileHash, fileSize, narHash, narSize, refs, deriver, sigs, ca, aliasTo from NARs where cache = ? and hashPart = ? and ((present = 0 and timestamp > ?) or (present = 1 and timestamp > ?))");
 
         /* Periodically purge expired entries from the database. */
         retrySQLite<void>([&]() {
@@ -212,6 +213,8 @@ public:
             for (auto & sig : tokenizeString<Strings>(queryNAR.getStr(10), " "))
                 narInfo->sigs.insert(sig);
             narInfo->ca = queryNAR.getStr(11);
+            if (!queryNAR.isNull(12))
+                narInfo->aliasTo = cache.storeDir + "/" + queryNAR.getStr(12);
 
             return {oValid, narInfo};
         });
@@ -246,6 +249,7 @@ public:
                     (info->deriver != "" ? baseNameOf(info->deriver) : "", info->deriver != "")
                     (concatStringsSep(" ", info->sigs))
                     (info->ca)
+                    (info->aliasTo)
                     (time(0)).exec();
 
             } else {
