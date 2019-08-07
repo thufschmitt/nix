@@ -3221,7 +3221,13 @@ void DerivationGoal::registerAliases()
           ValidPathInfo infoAliasPath = *targetPathInfo;
           infoAliasPath.path = outputDesiredPath;
           infoAliasPath.aliasTo = destinationPath;
+          HashResult hash;
+          PathSet references = scanForReferences(outputDesiredPath, {destinationPath}, hash);
+          infoAliasPath.narHash = hash.first;
+          infoAliasPath.narSize = hash.second;
+          infoAliasPath.references = references;
           infos[outputName + "-alias"] = infoAliasPath;
+          worker.store.signPathInfo(infoAliasPath);
       }
     }
     registerPaths(infos);
@@ -3348,7 +3354,7 @@ void DerivationGoal::registerOutputs()
             writeFile(actualPath, casPath);
 
             HashResult hash;
-            PathSet references = scanForReferences(actualPath, allPaths, hash);
+            PathSet references = scanForReferences(casPath, allPaths, hash);
 
             ValidPathInfo casInfo;
             casInfo.path = casPath;
@@ -3357,6 +3363,8 @@ void DerivationGoal::registerOutputs()
             casInfo.references = references;
             casInfo.deriver = drvPath;
             infos["alias-" + i.first] = casInfo;
+            casInfo.ultimate = true;
+            worker.store.signPathInfo(casInfo);
 
             info.aliasTo = casPath;
         }
