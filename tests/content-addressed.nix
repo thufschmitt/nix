@@ -1,19 +1,18 @@
 with import ./config.nix;
 
+{ seed }:
 let
   ca = mkDerivation {
     name = "simple-content-addressed";
     builder = ./simple.builder.sh;
     PATH = "";
-    goodPath = "${path}:${toString builtins.currentTime}";
+    goodPath = "${path}:${toString seed}";
     contentAddressed = true;
   };
   dep = mkDerivation {
     name = "content-addressed-dependency";
     buildCommand = "echo \"building dep\" && echo ${ca}/hello > $out";
   };
-  /* Building this will fail because `dep` isn't written at the right place in
-  the store nor correctly registered in the DB */
   dep2 = mkDerivation {
     name = "meta-dependency";
     buildCommand = "cat ${dep} > $out";
