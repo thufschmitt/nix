@@ -1,0 +1,10 @@
+--- src/libstore/build.cc
++++ src/libstore/build.cc
+@@ -13,6 +13,7 @@
+ #include "nar-info.hh"
+ #include "parsed-derivations.hh"
+ #include "machines.hh"
++#include "json-logger.hh"
+ 
+ #include <algorithm>
+ #include <iostream>

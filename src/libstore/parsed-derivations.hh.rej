@@ -1,0 +1,11 @@
+--- src/libstore/parsed-derivations.hh
++++ src/libstore/parsed-derivations.hh
+@@ -32,6 +32,8 @@ public:
+     bool willBuildLocally() const;
+ 
+     bool substitutesAllowed() const;
++
++    bool contentAddressed() const;
+ };
+ 
+ }
