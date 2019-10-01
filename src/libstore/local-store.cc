@@ -5,6 +5,7 @@
 #include "worker-protocol.hh"
 #include "derivations.hh"
 #include "nar-info.hh"
+#include "references.hh"
 
 #include <iostream>
 #include <algorithm>
@@ -214,13 +215,13 @@ LocalStore::LocalStore(const Params & params)
 
     /* Prepare SQL statements. */
     state->stmtRegisterValidPath.create(state->db,
-        "insert into ValidPaths (path, hash, registrationTime, deriver, narSize, ultimate, sigs, ca) values (?, ?, ?, ?, ?, ?, ?, ?);");
+        "insert into ValidPaths (path, hash, registrationTime, deriver, narSize, ultimate, sigs, ca, aliasOf) values (?, ?, ?, ?, ?, ?, ?, ?, ?);");
     state->stmtUpdatePathInfo.create(state->db,
         "update ValidPaths set narSize = ?, hash = ?, ultimate = ?, sigs = ?, ca = ? where path = ?;");
     state->stmtAddReference.create(state->db,
         "insert or replace into Refs (referrer, reference) values (?, ?);");
     state->stmtQueryPathInfo.create(state->db,
-        "select id, hash, registrationTime, deriver, narSize, ultimate, sigs, ca from ValidPaths where path = ?;");
+        "select id, hash, registrationTime, deriver, narSize, ultimate, sigs, ca, aliasOf from ValidPaths where path = ?;");
     state->stmtQueryReferences.create(state->db,
         "select path from Refs join ValidPaths on reference = id where referrer = ?;");
     state->stmtQueryReferrers.create(state->db,
@@ -593,6 +594,7 @@ uint64_t LocalStore::addValidPath(State & state,
         (info.ultimate ? 1 : 0, info.ultimate)
         (concatStringsSep(" ", info.sigs), !info.sigs.empty())
         (info.ca, !info.ca.empty())
+        (info.aliasOf, !info.aliasOf.empty())
         .exec();
     uint64_t id = sqlite3_last_insert_rowid(state.db);
 
@@ -669,6 +671,9 @@ void LocalStore::queryPathInfoUncached(const Path & path,
 
             s = (const char *) sqlite3_column_text(state->stmtQueryPathInfo, 7);
             if (s) info->ca = s;
+
+            s = (const char *) sqlite3_column_text(state->stmtQueryPathInfo, 8);
+            if (s) info->aliasOf = s;
 
             /* Get the references. */
             auto useQueryReferences(state->stmtQueryReferences.use()(info->id));
@@ -1432,5 +1437,53 @@ void LocalStore::signPathInfo(ValidPathInfo & info)
     }
 }
 
+ref<ValidPathInfo> LocalStore::createAlias(const ValidPathInfo & destInfo, const Path & aliasPath) {
+    ValidPathInfo aliasInfo = destInfo;
+
+    // XXX: We currently need the alias path to exist for things like `--check`
+    // to work nicely with it
+    writeFile(toRealPath(aliasPath), destInfo.path);
+
+    HashResult aliasHash;
+
+    // XXX: Do we actualy need `scanForReferences` as we just want to compute
+    // the hash?
+    scanForReferences(toRealPath(aliasPath), {}, aliasHash);
+    aliasInfo.narHash = aliasHash.first;
+    aliasInfo.narSize = aliasHash.second;
+    aliasInfo.path = aliasPath;
+    aliasInfo.aliasOf = destInfo.path;
+
+    signPathInfo(aliasInfo);
+
+    return make_ref<ValidPathInfo>(aliasInfo);
+}
+
+ref<ValidPathInfo> LocalStore::makeContentAddressed(ValidPathInfo & info) {
+    debug("Moving to its actual location");
+
+    auto aliasPath = info.path;
+    auto aliasRealPath = toRealPath(info.path);
+    auto recursive = true;
+    auto hashAlgo = htSHA256;
+    auto pathName = storePathToName(aliasPath);
+    Hash contentHash = hashPath(hashAlgo, aliasRealPath).first;
+
+    Path casPath = makeFixedOutputPath(recursive, contentHash, pathName);
+
+    // Move the path to its ca location
+    // XXX: We could probably actually move it instead of copy it
+    if (!pathExists(toRealPath(casPath))) {
+        StringSink sink;
+        dumpPath(aliasRealPath, sink);
+        StringSource source(*sink.s);
+        restorePath(toRealPath(casPath), source);
+    };
+    deletePath(aliasRealPath);
+
+    info.path = casPath;
+
+    return createAlias(info, aliasPath);
+}
 
 }

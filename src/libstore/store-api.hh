@@ -157,6 +157,12 @@ struct ValidPathInfo
     */
     std::string ca;
 
+    /* If non-empty, indicates that the path is an alias of another path,
+     * so it has no content by itself, but should be replaced by the path
+     * targeted by this field.
+     */
+    std::string aliasOf;
+
     bool operator == (const ValidPathInfo & i) const
     {
         return
@@ -552,6 +558,8 @@ public:
     void computeFSClosure(const Path & path,
         PathSet & out, bool flipDirection = false,
         bool includeOutputs = false, bool includeDerivers = false);
+
+    Path resolveAliases(const Path & path);
 
     /* Given a set of paths that are to be built, return the set of
        derivations that will be built, and the set of output paths

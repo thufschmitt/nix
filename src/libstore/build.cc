@@ -13,6 +13,7 @@
 #include "nar-info.hh"
 #include "parsed-derivations.hh"
 #include "machines.hh"
+#include "rewrite-derivation.hh"
 
 #include <algorithm>
 #include <iostream>
@@ -724,27 +725,6 @@ HookInstance::~HookInstance()
     }
 }
 
-
-//////////////////////////////////////////////////////////////////////
-
-
-typedef map<std::string, std::string> StringRewrites;
-
-
-std::string rewriteStrings(std::string s, const StringRewrites & rewrites)
-{
-    for (auto & i : rewrites) {
-        size_t j = 0;
-        while ((j = s.find(i.first, j)) != string::npos)
-            s.replace(j, i.first.size(), i.second);
-    }
-    return s;
-}
-
-
-//////////////////////////////////////////////////////////////////////
-
-
 typedef enum {rpAccept, rpDecline, rpPostpone} HookReply;
 
 class SubstitutionGoal;
@@ -769,6 +749,10 @@ private:
        inputs. */
     bool retrySubstitution;
 
+    /* Whether we should try to rewrite the inputs to resolve aliases before
+     * building the derivation */
+    bool rewriteInputs = true;
+
     /* The derivation stored at drvPath. */
     std::unique_ptr<BasicDerivation> drv;
 
@@ -792,6 +776,9 @@ private:
 
     /* Outputs that are corrupt or not valid. */
     PathSet missingPaths;
+
+    /* Extra outputs that will be stored as aliases to the actual outputs. */
+    DerivationOutputs aliasOutputs;
 
     /* User selected for running the builder. */
     std::unique_ptr<UserLock> buildUser;
@@ -839,6 +826,9 @@ private:
 
     /* Whether this is a fixed-output derivation. */
     bool fixedOutput;
+
+    /* Whether this is a content adressed derivation */
+    bool contentAddressed = false;
 
     /* Whether to run the build in a private network namespace. */
     bool privateNetwork = false;
@@ -971,6 +961,9 @@ private:
     /* Check that the derivation outputs all exist and register them
        as valid. */
     void registerOutputs();
+
+    /* Register the static aliases to the actual output paths if needed */
+    void registerAliases();
 
     /* Check that an output meets the requirements specified by the
        'outputChecks' attribute (or the legacy
@@ -1194,6 +1187,8 @@ void DerivationGoal::haveDerivation()
 
     parsedDrv = std::make_unique<ParsedDerivation>(drvPath, *drv);
 
+    contentAddressed = parsedDrv->contentAddressed();
+
     /* We are first going to try to create the invalid output paths
        through substitutes.  If that doesn't work, we'll build
        them. */
@@ -1360,25 +1355,36 @@ void DerivationGoal::inputsRealised()
 
     /* Determine the full set of input paths. */
 
-    /* First, the input derivations. */
-    if (useDerivation)
-        for (auto & i : dynamic_cast<Derivation *>(drv.get())->inputDrvs) {
-            /* Add the relevant output closures of the input derivation
-               `i' as input paths.  Only add the closures of output paths
-               that are specified as inputs. */
-            assert(worker.store.isValidPath(i.first));
-            Derivation inDrv = worker.store.derivationFromPath(i.first);
-            for (auto & j : i.second)
-                if (inDrv.outputs.find(j) != inDrv.outputs.end())
-                    worker.store.computeFSClosure(inDrv.outputs[j].path, inputPaths);
-                else
-                    throw Error(
-                        format("derivation '%1%' requires non-existent output '%2%' from input derivation '%3%'")
-                        % drvPath % j % i.first);
-        }
+    // A map from the set of all the input paths of the derivation (inputSrcs
+    // or outputs of a dependency drv) to their actual path.
+    PathMap directInputPaths = gatherInputPaths(worker.store, *(drv.get()), useDerivation);
 
-    /* Second, the input sources. */
-    worker.store.computeFSClosure(drv->inputSrcs, inputPaths);
+    if (rewriteInputs && useDerivation) {
+        if (wantedOutputs.empty()) {
+            aliasOutputs = drv->outputs;
+        }
+        else {
+            for (auto & outputName : wantedOutputs) {
+                aliasOutputs[outputName] = drv->outputs[outputName];
+            }
+        }
+        rewriteDerivation(
+            worker.store,
+            *(dynamic_cast<Derivation *>(drv.get())),
+            directInputPaths
+        );
+        rewriteInputs = false;
+        haveDerivation();
+        return;
+    }
+
+
+    for (auto & inputSrcAlias: directInputPaths) {
+        worker.store.computeFSClosure(
+            inputSrcAlias.second,
+            inputPaths
+        );
+    }
 
     debug(format("added input paths %1%") % showPaths(inputPaths));
 
@@ -3156,6 +3162,24 @@ PathSet parseReferenceSpecifiers(Store & store, const BasicDerivation & drv, con
     return result;
 }
 
+void DerivationGoal::registerAliases()
+{
+    ValidPathInfos aliasesInfos;
+
+    for (auto & staticOutput : aliasOutputs) {
+        auto aliasTarget =
+          *worker.store.queryPathInfo(drv->outputs[staticOutput.first].path);
+        auto srcPath = staticOutput.second.path;
+        if (srcPath != aliasTarget.path) {
+            debug(format("Registering alias %1% of %2%")
+                % aliasTarget.path
+                % srcPath);
+            auto aliasInfo = *(worker.store.createAlias(aliasTarget, srcPath));
+            aliasesInfos.emplace_back(aliasInfo);
+        }
+    }
+    worker.store.registerValidPaths(aliasesInfos);
+}
 
 void DerivationGoal::registerOutputs()
 {
@@ -3374,11 +3398,21 @@ void DerivationGoal::registerOutputs()
         info.references = references;
         info.deriver = drvPath;
         info.ultimate = true;
-        worker.store.signPathInfo(info);
 
         if (!info.references.empty()) info.ca.clear();
 
+        /* If the derivation is content addressed, move its outputs to the right
+         * place and update the path info
+         */
+        if (contentAddressed) {
+            auto aliasInfo = *(worker.store.makeContentAddressed(info));
+            infos["cas-of-" + i.first] = aliasInfo;
+        }
+
+        worker.store.signPathInfo(info);
+
         infos[i.first] = info;
+
     }
 
     if (buildMode == bmCheck) return;
@@ -3774,6 +3808,7 @@ void DerivationGoal::done(BuildResult::Status status, const string & msg)
     mcRunningBuilds.reset();
 
     if (result.success()) {
+        registerAliases();
         if (status == BuildResult::Built)
             worker.doneBuilds++;
     } else {
