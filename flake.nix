@@ -418,7 +418,7 @@
         with nixpkgsFor.${system};
         with commonDeps pkgs;
 
-        stdenv.mkDerivation {
+        clangStdenv.mkDerivation {
           name = "nix";
 
           buildInputs = buildDeps ++ propagatedDeps ++ perlDeps;
