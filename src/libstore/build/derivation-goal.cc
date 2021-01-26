@@ -1107,8 +1107,8 @@ HookReply DerivationGoal::tryBuildHook()
     {
         StringSet missingOutputs;
         for (auto & [outputName, status] : initialOutputs) {
-            if (!status.known) continue;
-            if (buildMode != bmCheck && status.known->isValid()) continue;
+            // XXX: Does this include known CA outputs?
+            if (buildMode != bmCheck && status.known && status.known->isValid()) continue;
             missingOutputs.insert(outputName);
             /* missingPaths.insert(status.known->path); */
         }
