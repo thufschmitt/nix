@@ -10,6 +10,7 @@ makefiles = \
   src/libcmd/local.mk \
   src/nix/local.mk \
   src/resolve-system-dependencies/local.mk \
+  fuzz/local.mk \
   scripts/local.mk \
   misc/bash/local.mk \
   misc/zsh/local.mk \
