@@ -58,7 +58,7 @@
         });
 
         configureFlags =
-          lib.optionals stdenv.isLinux [
+          lib.optionals clangStdenv.isLinux [
             "--with-sandbox-shell=${sh}/bin/busybox"
             "LDFLAGS=-fuse-ld=gold"
           ];
@@ -79,7 +79,7 @@
             buildPackages.mercurial
             buildPackages.jq
           ]
-          ++ lib.optionals stdenv.isLinux [(pkgs.util-linuxMinimal or pkgs.utillinuxMinimal)];
+          ++ lib.optionals clangStdenv.isLinux [(pkgs.util-linuxMinimal or pkgs.utillinuxMinimal)];
 
         buildDeps =
           [ curl
@@ -91,11 +91,11 @@
             lowdown
             gmock
           ]
-          ++ lib.optionals stdenv.isLinux [libseccomp]
-          ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium
-          ++ lib.optional stdenv.isx86_64 libcpuid;
+          ++ lib.optionals clangStdenv.isLinux [libseccomp]
+          ++ lib.optional (clangStdenv.isLinux || clangStdenv.isDarwin) libsodium
+          ++ lib.optional clangStdenv.isx86_64 libcpuid;
 
-        awsDeps = lib.optional (stdenv.isLinux || stdenv.isDarwin)
+        awsDeps = lib.optional (clangStdenv.isLinux || clangStdenv.isDarwin)
           (aws-sdk-cpp.override {
             apis = ["s3" "transfer"];
             customMemoryManagement = false;
@@ -145,7 +145,7 @@
             echo "file installer $out/install" >> $out/nix-support/hydra-build-products
           '';
 
-      testNixVersions = pkgs: client: daemon: with commonDeps pkgs; pkgs.stdenv.mkDerivation {
+      testNixVersions = pkgs: client: daemon: with commonDeps pkgs; pkgs.clangStdenv.mkDerivation {
         NIX_DAEMON_PACKAGE = daemon;
         NIX_CLIENT_PACKAGE = client;
         # Must keep this name short as OSX has a rather strict limit on the
@@ -185,7 +185,7 @@
         # `NIX_DAEMON_SOCKET_PATH` which is needed for the tests.
         nixStable = prev.nix;
 
-        nix = with final; with commonDeps pkgs; stdenv.mkDerivation {
+        nix = with final; with commonDeps pkgs; clangStdenv.mkDerivation {
           name = "nix-${version}";
           inherit version;
 
@@ -207,9 +207,9 @@
               mkdir -p $out/lib
               cp -pd ${boost}/lib/{libboost_context*,libboost_thread*,libboost_system*} $out/lib
               rm -f $out/lib/*.a
-              ${lib.optionalString stdenv.isLinux ''
+              ${lib.optionalString clangStdenv.isLinux ''
                 chmod u+w $out/lib/*.so.*
-                patchelf --set-rpath $out/lib:${stdenv.cc.cc.lib}/lib $out/lib/libboost_thread.so.*
+                patchelf --set-rpath $out/lib:${clangStdenv.cc.cc.lib}/lib $out/lib/libboost_thread.so.*
               ''}
             '';
 
@@ -236,7 +236,7 @@
 
           strictDeps = true;
 
-          passthru.perl-bindings = with final; stdenv.mkDerivation {
+          passthru.perl-bindings = with final; clangStdenv.mkDerivation {
             name = "nix-perl-${version}";
 
             src = self;
@@ -256,7 +256,7 @@
                 boost
                 nlohmann_json
               ]
-              ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium;
+              ++ lib.optional (clangStdenv.isLinux || clangStdenv.isDarwin) libsodium;
 
             configureFlags = ''
               --with-dbi=${perlPackages.DBI}/${pkgs.perl.libPrefix}
@@ -270,7 +270,7 @@
 
         };
 
-        lowdown = with final; stdenv.mkDerivation rec {
+        lowdown = with final; clangStdenv.mkDerivation rec {
           name = "lowdown-0.8.4";
 
           /*
@@ -287,7 +287,7 @@
           nativeBuildInputs = [ which ];
 
           configurePhase = ''
-              ${if (stdenv.isDarwin && stdenv.isAarch64) then "echo \"HAVE_SANDBOX_INIT=false\" > configure.local" else ""}
+              ${if (clangStdenv.isDarwin && clangStdenv.isAarch64) then "echo \"HAVE_SANDBOX_INIT=false\" > configure.local" else ""}
               ./configure \
                 PREFIX=${placeholder "dev"} \
                 BINDIR=${placeholder "bin"}/bin
@@ -489,7 +489,7 @@
       } // nixpkgs.lib.optionalAttrs (builtins.elem system linux64BitSystems) {
         nix-static = let
           nixpkgs = nixpkgsFor.${system}.pkgsStatic;
-        in with commonDeps nixpkgs; nixpkgs.stdenv.mkDerivation {
+        in with commonDeps nixpkgs; nixpkgs.clangStdenv.mkDerivation {
           name = "nix-${version}";
 
           src = self;
@@ -533,7 +533,7 @@
         with nixpkgsFor.${system};
         with commonDeps pkgs;
 
-        stdenv.mkDerivation {
+        clangStdenv.mkDerivation {
           name = "nix";
 
           outputs = [ "out" "dev" "doc" ];
