@@ -34,8 +34,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   Expr * expression;
   try {
     expression = state->parseExprFromString(expression_string, absPath("."));
-  } catch (const nix::ParseError & e) {
-    // Parse errors are legitimate, so we want to gracefully return here.
+  }
+  // Some errors are legitimate, so we want to gracefully return when they are raised.
+  catch (const ParseError & e) {
+    return 0;
+  }
+  catch (const UndefinedVarError & e) {
+    return 0;
+  }
+  catch (const TypeError & e) {
     return 0;
   }
 
@@ -43,7 +50,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   // Adapted from `processExpr` in `src/nix-instantiate/nix-instantiate.cc`.
 
   Value vRoot;
-  state->eval(expression, vRoot);
+  try {
+    state->eval(expression, vRoot);
+  }
+  catch (const TypeError & e) {
+    return 0;
+  }
 
   for (auto & i : attrPaths) {
       Value & v(*findAlongAttrPath(*state, i, *autoArgs, vRoot).first);
@@ -51,7 +63,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 
       PathSet context;
       DrvInfos drvs;
-      getDerivations(*state, v, "", *autoArgs, drvs, false);
+
+      try {
+        getDerivations(*state, v, "", *autoArgs, drvs, false);
+      }
+      catch (const TypeError & e) {
+        return 0;
+      }
+
       for (auto & i : drvs) {
           Path drvPath = i.queryDrvPath();
 
