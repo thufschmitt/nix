@@ -4,10 +4,15 @@ libs = libexpr libstore libutil
 #   See https://github.com/google/sanitizers/wiki/AddressSanitizer#faq ;
 # * `AddressSanitizerUseAfterScope` seems to raise a lot of false positive;
 fuzz_CXXFLAGS = $(nix_CXXFLAGS) \
-								-O1 \
 								-fsanitize=address,fuzzer \
 								-shared-libasan \
 								-fno-sanitize-address-use-after-scope
+
+ifeq ($(BUILD_DEBUG), 1)
+	fuzz_CXXFLAGS += -O0
+else
+	fuzz_CXXFLAGS += -O1
+endif
 
 fuzz_LDFLAGS = $(nix_LDFLAGS) $(foreach l,$(libs),-Lsrc/$(l) $(subst lib,nix,-l$(l)))
 
