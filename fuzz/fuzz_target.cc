@@ -22,7 +22,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   // TODO: real opened store VS dummy?
   // auto store = openStore();
   // auto state = std::make_unique<EvalState>(Strings(), store);
-  auto state = std::make_unique<EvalState>(Strings(), openStore("dummy://"));
+  static std::unique_ptr<EvalState> state;
+  if (!state)
+    state = std::make_unique<EvalState>(Strings(), openStore("dummy://"));
+
   state->repair = Repair;
 
   Strings attrPaths = {""};
@@ -30,7 +33,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 
   // Format input data into an expression
 
-  const char * expression_string = std::string(reinterpret_cast<const char*>(Data), Size).c_str();
+  std::string expression_string = std::string((char*)Data, Size);
   Expr * expression;
   try {
     expression = state->parseExprFromString(expression_string, absPath("."));
@@ -45,6 +48,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   catch (const TypeError & e) {
     return 0;
   }
+  catch (const Unsupported &) {
+    return 0;
+  }
 
   // Parse and evaluate the expression, update the store representation;
   // Adapted from `processExpr` in `src/nix-instantiate/nix-instantiate.cc`.
@@ -54,6 +60,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     state->eval(expression, vRoot);
   }
   catch (const TypeError & e) {
+    return 0;
+  }
+  catch (const EvalError & e) {
+    return 0;
+  }
+  catch (const Unsupported &) {
     return 0;
   }
 
@@ -69,6 +81,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
       }
       catch (const TypeError & e) {
         return 0;
+      }
+      catch (const EvalError & e) {
+          return 0;
       }
 
       for (auto & i : drvs) {
