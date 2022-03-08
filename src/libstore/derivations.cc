@@ -557,7 +557,7 @@ DrvHashModulo hashDerivationModulo(Store & store, const Derivation & drv, bool m
 
 std::map<std::string, Hash> staticOutputHashes(Store & store, const Derivation & drv)
 {
-    return hashDerivationModulo(store, drv, true).hashes;
+    return store.getHashModulo(drv).hashes;
 }
 
 
@@ -703,7 +703,7 @@ static void rewriteDerivation(Store & store, BasicDerivation & drv, const String
     }
     drv.env = newEnv;
 
-    auto hashModulo = hashDerivationModulo(store, Derivation(drv), true);
+    auto hashModulo = store.getHashModulo(Derivation(drv));
     for (auto & [outputName, output] : drv.outputs) {
         if (std::holds_alternative<DerivationOutputDeferred>(output.output)) {
             Hash h = hashModulo.hashes.at(outputName);

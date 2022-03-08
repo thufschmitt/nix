@@ -206,7 +206,7 @@ static StorePath getDerivationEnvironment(ref<Store> store, ref<Store> evalStore
             output.second = { .output = DerivationOutputInputAddressed { .path = StorePath::dummy } };
             drv.env[output.first] = "";
         }
-        auto hashesModulo = hashDerivationModulo(*evalStore, drv, true);
+        auto hashesModulo = evalStore->getHashModulo(drv);
 
         for (auto & output : drv.outputs) {
             Hash h = hashesModulo.hashes.at(output.first);

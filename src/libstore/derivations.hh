@@ -193,6 +193,9 @@ struct DrvHashModulo {
 /* Returns hashes with the details of fixed-output subderivations
    expunged.
 
+   You probably want to use `Store::getHashModulo` instead as it might add a
+   layer of caching on top of that.
+
    A fixed-output derivation is a derivation whose outputs have a
    specified content hash and hash algorithm. (Currently they must have
    exactly one output (`out'), which is specified using the `outputHash'

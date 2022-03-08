@@ -338,6 +338,12 @@ public:
        Assume every output has a mapping and throw an exception otherwise. */
     OutputPathMap queryDerivationOutputMap(const StorePath & path);
 
+    /*
+     * Query for the `DrvHashModulo` of the given derivation.
+     */
+    virtual DrvHashModulo getHashModulo(const StorePath & path);
+    virtual DrvHashModulo getHashModulo(const Derivation & drv);
+
     /* Query the full store path given the hash part of a valid store
        path, or empty if the path doesn't exist. */
     virtual std::optional<StorePath> queryPathFromHashPart(const std::string & hashPart) = 0;

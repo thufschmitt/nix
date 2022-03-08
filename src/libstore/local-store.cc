@@ -701,7 +701,7 @@ void LocalStore::checkDerivationOutputs(const StorePath & drvPath, const Derivat
             [&](const DerivationOutputInputAddressed & doia) {
                 if (!hashesModulo) {
                     // somewhat expensive so we do lazily
-                    hashesModulo = hashDerivationModulo(*this, drv, true);
+                    hashesModulo = getHashModulo(drv);
                 }
                 StorePath recomputed = makeOutputPath(i.first, hashesModulo->hashes.at(i.first), drvName);
                 if (doia.path != recomputed)

@@ -1279,6 +1279,12 @@ Derivation Store::readDerivation(const StorePath & drvPath)
 Derivation Store::readInvalidDerivation(const StorePath & drvPath)
 { return readDerivationCommon(*this, drvPath, false); }
 
+DrvHashModulo Store::getHashModulo(const StorePath & path)
+{ return getHashModulo(readInvalidDerivation(path)); }
+
+DrvHashModulo Store::getHashModulo(const Derivation & drv)
+{ return hashDerivationModulo(*this, drv, true); }
+
 }
 
 
