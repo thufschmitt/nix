@@ -35,6 +35,9 @@ create table if not exists DerivationOutputs (
     drv  integer not null,
     id   text not null, -- symbolic output id, usually "out"
     path text not null,
+    -- Potentially null because it has been introduced after the rest and
+    -- we don’t want to recompute all of them when migrating the db
+    hashModulo text,
     primary key (drv, id),
     foreign key (drv) references ValidPaths(id) on delete cascade
 );
