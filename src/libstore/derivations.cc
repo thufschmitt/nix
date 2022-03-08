@@ -750,4 +750,26 @@ std::optional<BasicDerivation> Derivation::tryResolve(Store & store) {
     return resolved;
 }
 
+std::string DrvHashModulo::kind_to_string(Kind kind)
+{
+    switch (kind) {
+        case Regular:
+            return "Regular";
+        case Deferred:
+            return "Defered";
+        default:
+            assert(false);
+    }
+}
+
+std::optional<DrvHashModulo::Kind> DrvHashModulo::parse_kind(std::string_view input)
+{
+    if (input == "Regular")
+        return Regular;
+    if (input == "Defered")
+        return Deferred;
+
+    return std::nullopt;
+}
+
 }

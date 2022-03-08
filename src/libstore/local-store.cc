@@ -54,6 +54,7 @@ struct LocalStore::State::Stmts {
     SQLiteStmt QueryReferrers;
     SQLiteStmt InvalidatePath;
     SQLiteStmt AddDerivationOutput;
+    SQLiteStmt UpdateHashModulo;
     SQLiteStmt RegisterRealisedOutput;
     SQLiteStmt UpdateRealisedOutput;
     SQLiteStmt QueryValidDerivers;
@@ -341,11 +342,20 @@ LocalStore::LocalStore(const Params & params)
     state->stmts->InvalidatePath.create(state->db,
         "delete from ValidPaths where path = ?;");
     state->stmts->AddDerivationOutput.create(state->db,
-        "insert or replace into DerivationOutputs (drv, id, path) values (?, ?, ?);");
+        "insert or replace into DerivationOutputs (drv, id, path, hashModulo, outputType) values (?, ?, ?, ?, ?);");
+    state->stmts->UpdateHashModulo.create(state->db,
+        R"(
+            update DerivationOutputs
+                set hashModulo = ?
+                and outputType = ?
+            where
+                drv = ?
+                and id = ?
+        )");
     state->stmts->QueryValidDerivers.create(state->db,
         "select v.id, v.path from DerivationOutputs d join ValidPaths v on d.drv = v.id where d.path = ?;");
     state->stmts->QueryDerivationOutputs.create(state->db,
-        "select id, path from DerivationOutputs where drv = ?;");
+        "select id, path, hashModulo, outputType from DerivationOutputs where drv = ?;");
     // Use "path >= ?" with limit 1 rather than "path like '?%'" to
     // ensure efficient lookup.
     state->stmts->QueryPathFromHashPart.create(state->db,
@@ -720,6 +730,78 @@ void LocalStore::checkDerivationOutputs(const StorePath & drvPath, const Derivat
             },
         }, i.second.output);
     }
+
+}
+
+DrvHashModulo LocalStore::getHashModulo(const StorePath & path)
+{
+    auto getHashModuloFromDb = [&]() -> std::optional<DrvHashModulo> {
+        return retrySQLite<std::optional<DrvHashModulo>>([&]() {
+            auto state(_state.lock());
+            std::map<std::string, Hash> hashes;
+            std::optional<DrvHashModulo::Kind> kind;
+            uint64_t drvId;
+            drvId = queryValidPathId(*state, path);
+            auto use(state->stmts->QueryDerivationOutputs.use()(drvId));
+            while (use.next()) {
+                auto currentOutputName = use.getStr(0);
+                auto rawOutputHash = use.getStr(2);
+
+                // The db might contain an empty hash modulo, in which case
+                // we need to fallback to recomputing it
+                if (rawOutputHash.empty())
+                    return((std::optional<DrvHashModulo>)std::nullopt);
+
+                auto currentOutputHash = Hash::parseAnyPrefixed(rawOutputHash);
+                auto currentOutputKind
+                    = DrvHashModulo::parse_kind(use.getStr(3));
+
+                if (!currentOutputKind) {
+                    throw Error(
+                        "unknown derivation kind %s in the SQlite database",
+                        use.getStr(3));
+                }
+                if (kind.value_or(*currentOutputKind) != *currentOutputKind)
+                    throw Error("The stored outputs of this derivation have two conflicting kinds");
+
+                hashes.insert({currentOutputName, currentOutputHash});
+            }
+
+            return std::optional{DrvHashModulo{ .hashes = hashes, .kind = kind.value() }};
+        });
+    };
+
+    try {
+        if (auto hashModulo = getHashModuloFromDb())
+            return hashModulo.value();
+    } catch (Error & e) {
+        e.addTrace(
+            std::nullopt,
+            "while getting the hash modulo of the derivation %s",
+            printStorePath(path));
+        throw;
+    }
+
+    auto hashModulo = getHashModulo(readInvalidDerivation(path));
+
+    retrySQLite<void>([&]() {
+        for (auto [outputName, outputHash] : hashModulo.hashes) {
+            auto state(_state.lock());
+            state->stmts->UpdateHashModulo.use()
+                (printStorePath(path))
+                (outputName)
+                (outputHash.to_string(Base16, true))
+                (DrvHashModulo::kind_to_string(hashModulo.kind))
+                .exec();
+        }
+    });
+
+    return hashModulo;
+}
+
+DrvHashModulo LocalStore::getHashModulo(const Derivation & drv)
+{
+    return Store::getHashModulo(drv);
 }
 
 void LocalStore::registerDrvOutput(const Realisation & info, CheckSigsFlag checkSigs)
@@ -789,13 +871,16 @@ void LocalStore::cacheDrvOutputMapping(
     State & state,
     const uint64_t deriver,
     const std::string & outputName,
-    const StorePath & output)
+    const StorePath & output,
+    const DrvHashModulo & hashModulo)
 {
     retrySQLite<void>([&]() {
         state.stmts->AddDerivationOutput.use()
             (deriver)
             (outputName)
             (printStorePath(output))
+            (hashModulo.hashes.at(outputName).to_string(Base16, true))
+            (DrvHashModulo::kind_to_string(hashModulo.kind))
             .exec();
     });
 }
@@ -834,11 +919,13 @@ uint64_t LocalStore::addValidPath(State & state,
            registration above is undone. */
         if (checkOutputs) checkDerivationOutputs(info.path, drv);
 
+        auto hashModulo = hashDerivationModulo(*this, drv, true);
+
         for (auto & i : drv.outputsAndOptPaths(*this)) {
             /* Floating CA derivations have indeterminate output paths until
                they are built, so don't register anything in that case */
             if (i.second.second)
-                cacheDrvOutputMapping(state, id, i.first, *i.second.second);
+                cacheDrvOutputMapping(state, id, i.first, *i.second.second, hashModulo);
         }
     }
 

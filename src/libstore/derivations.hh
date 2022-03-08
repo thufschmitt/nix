@@ -188,6 +188,9 @@ struct DrvHashModulo {
         Deferred
     };
     Kind kind;
+
+    static std::string kind_to_string(Kind);
+    static std::optional<Kind> parse_kind(std::string_view);
 };
 
 /* Returns hashes with the details of fixed-output subderivations

@@ -132,6 +132,9 @@ public:
 
     std::map<std::string, std::optional<StorePath>> queryPartialDerivationOutputMap(const StorePath & path) override;
 
+    DrvHashModulo getHashModulo(const Derivation & drv) override;
+    DrvHashModulo getHashModulo(const StorePath & path) override;
+
     std::optional<StorePath> queryPathFromHashPart(const std::string & hashPart) override;
 
     StorePathSet querySubstitutablePaths(const StorePathSet & paths) override;
@@ -212,7 +215,8 @@ public:
         State & state,
         const uint64_t deriver,
         const std::string & outputName,
-        const StorePath & output);
+        const StorePath & output,
+        const DrvHashModulo &);
 
     std::optional<const Realisation> queryRealisation_(State & state, const DrvOutput & id);
     std::optional<std::pair<int64_t, Realisation>> queryRealisationCore_(State & state, const DrvOutput & id);
