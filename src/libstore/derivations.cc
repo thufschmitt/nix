@@ -510,10 +510,9 @@ static const DrvHashModulo pathDerivationModulo(Store & store, const StorePath &
  */
 DrvHashModulo hashDerivationModulo(Store & store, const Derivation & drv, bool maskOutputs)
 {
-    bool isDeferred = false;
+    auto kind = DrvHashModulo::Kind{};
     /* Return a fixed hash for fixed-output derivations. */
-    switch (drv.type()) {
-    case DerivationType::CAFixed: {
+    if(drv.type() == DerivationType::CAFixed) {
         std::map<std::string, Hash> outputHashes;
         for (const auto & i : drv.outputs) {
             auto & dof = std::get<DerivationOutputCAFixed>(i.second.output);
@@ -523,15 +522,10 @@ DrvHashModulo hashDerivationModulo(Store & store, const Derivation & drv, bool m
                 + store.printStorePath(dof.path(store, drv.name, i.first)));
             outputHashes.insert_or_assign(i.first, std::move(hash));
         }
-        return outputHashes;
-    }
-    case DerivationType::CAFloating:
-        isDeferred = true;
-        break;
-    case DerivationType::InputAddressed:
-        break;
-    case DerivationType::DeferredInputAddressed:
-        break;
+        return DrvHashModulo{
+            .hashes = outputHashes,
+            .kind = kind,
+        };
     }
 
     /* For other derivations, replace the inputs paths with recursive
@@ -539,57 +533,31 @@ DrvHashModulo hashDerivationModulo(Store & store, const Derivation & drv, bool m
     std::map<std::string, StringSet> inputs2;
     for (auto & i : drv.inputDrvs) {
         const auto & res = pathDerivationModulo(store, i.first);
-        std::visit(overloaded {
-            // Regular non-CA derivation, replace derivation
-            [&](const Hash & drvHash) {
-                inputs2.insert_or_assign(drvHash.to_string(Base16, false), i.second);
-            },
-            [&](const DeferredHash & deferredHash) {
-                isDeferred = true;
-                inputs2.insert_or_assign(deferredHash.hash.to_string(Base16, false), i.second);
-            },
-            // CA derivation's output hashes
-            [&](const CaOutputHashes & outputHashes) {
-                std::set<std::string> justOut = { "out" };
-                for (auto & output : i.second) {
-                    /* Put each one in with a single "out" output.. */
-                    const auto h = outputHashes.at(output);
-                    inputs2.insert_or_assign(
-                        h.to_string(Base16, false),
-                        justOut);
-                }
-            },
-        }, res);
+        if (drv.type() == DerivationType::CAFloating || res.kind == DrvHashModulo::Deferred)
+            kind = DrvHashModulo::Deferred;
+        for (auto & outputName : i.second) {
+            const auto h = res.hashes.at(outputName);
+            inputs2.insert_or_assign(h.to_string(Base16, false), i.second);
+        }
     }
 
     auto hash = hashString(htSHA256, drv.unparse(store, maskOutputs, &inputs2));
 
-    if (isDeferred)
-        return DeferredHash { hash };
-    else
-        return hash;
+    std::map<std::string, Hash> outputHashes;
+    for (const auto & [outputName, _] : drv.outputs) {
+        outputHashes.insert_or_assign(outputName, hash);
+    }
+
+    return DrvHashModulo {
+        .hashes = outputHashes,
+        .kind = kind,
+    };
 }
 
 
 std::map<std::string, Hash> staticOutputHashes(Store & store, const Derivation & drv)
 {
-    std::map<std::string, Hash> res;
-    std::visit(overloaded {
-        [&](const Hash & drvHash) {
-            for (auto & outputName : drv.outputNames()) {
-                res.insert({outputName, drvHash});
-            }
-        },
-        [&](const DeferredHash & deferredHash) {
-            for (auto & outputName : drv.outputNames()) {
-                res.insert({outputName, deferredHash.hash});
-            }
-        },
-        [&](const CaOutputHashes & outputHashes) {
-            res = outputHashes;
-        },
-    }, hashDerivationModulo(store, drv, true));
-    return res;
+    return hashDerivationModulo(store, drv, true).hashes;
 }
 
 
@@ -738,7 +706,7 @@ static void rewriteDerivation(Store & store, BasicDerivation & drv, const String
     auto hashModulo = hashDerivationModulo(store, Derivation(drv), true);
     for (auto & [outputName, output] : drv.outputs) {
         if (std::holds_alternative<DerivationOutputDeferred>(output.output)) {
-            Hash h = std::get<Hash>(hashModulo);
+            Hash h = hashModulo.hashes.at(outputName);
             auto outPath = store.makeOutputPath(outputName, h, drv.name);
             drv.env[outputName] = store.printStorePath(outPath);
             output = DerivationOutput {

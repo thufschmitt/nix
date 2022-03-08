@@ -171,17 +171,24 @@ bool isDerivation(const std::string & fileName);
    the output name is "out". */
 std::string outputPathName(std::string_view drvName, std::string_view outputName);
 
-// known CA drv's output hashes, current just for fixed-output derivations
-// whose output hashes are always known since they are fixed up-front.
-typedef std::map<std::string, Hash> CaOutputHashes;
 
-struct DeferredHash { Hash hash; };
+// The hashes modulo of a derivation.
+//
+// Each output is given a hash, although in practice only the content-addressed
+// derivations (fixed-output or not) will have a different hash for each
+// output.
+struct DrvHashModulo {
+    std::map<std::string, Hash> hashes;
 
-typedef std::variant<
-    Hash, // regular DRV normalized hash
-    CaOutputHashes, // Fixed-output derivation hashes
-    DeferredHash // Deferred hashes for floating outputs drvs and their dependencies
-> DrvHashModulo;
+    enum Kind {
+        // Statically determined derivations.
+        // This hash will be directly used to compute the output paths
+        Regular,
+        // Floating-output derivations (and their dependencies).
+        Deferred
+    };
+    Kind kind;
+};
 
 /* Returns hashes with the details of fixed-output subderivations
    expunged.

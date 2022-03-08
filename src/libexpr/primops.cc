@@ -1203,37 +1203,31 @@ static void prim_derivationStrict(EvalState & state, const Pos & pos, Value * * 
                 });
         }
 
-        // Regular, non-CA derivation should always return a single hash and not
-        // hash per output.
         auto hashModulo = hashDerivationModulo(*state.store, Derivation(drv), true);
-        std::visit(overloaded {
-            [&](Hash & h) {
-                for (auto & i : outputs) {
-                    auto outPath = state.store->makeOutputPath(i, h, drvName);
-                    drv.env[i] = state.store->printStorePath(outPath);
-                    drv.outputs.insert_or_assign(i,
-                        DerivationOutput {
-                            .output = DerivationOutputInputAddressed {
-                                .path = std::move(outPath),
-                            },
-                        });
-                }
-            },
-            [&](CaOutputHashes &) {
-                // Shouldn't happen as the toplevel derivation is not CA.
-                assert(false);
-            },
-            [&](DeferredHash &) {
-                for (auto & i : outputs) {
-                    drv.outputs.insert_or_assign(i,
-                        DerivationOutput {
-                            .output = DerivationOutputDeferred{},
-                        });
-                }
-            },
-        },
-        hashModulo);
-
+        switch (hashModulo.kind) {
+        case DrvHashModulo::Regular:
+            for (auto & i : outputs) {
+                auto h = hashModulo.hashes.at(i);
+                auto outPath = state.store->makeOutputPath(i, h, drvName);
+                drv.env[i] = state.store->printStorePath(outPath);
+                drv.outputs.insert_or_assign(i,
+                    DerivationOutput {
+                        .output = DerivationOutputInputAddressed {
+                        .path = std::move(outPath),
+                    },
+                });
+            }
+            break;
+            ;
+        case DrvHashModulo::Deferred:
+            for (auto & i : outputs) {
+                drv.outputs.insert_or_assign(
+                    i,
+                    DerivationOutput {
+                        .output = DerivationOutputDeferred {},
+                    });
+            }
+        }
     }
 
     /* Write the resulting term into the Nix store directory. */
