@@ -339,7 +339,7 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
             store->queryReferrers(path, paths);
         else if (op == wopQueryValidDerivers)
             paths = store->queryValidDerivers(path);
-        else paths = store->queryDerivationOutputs(path);
+        else paths = store->queryDerivationOutputPaths(path);
         logger->stopWork();
         worker_proto::write(*store, to, paths);
         break;

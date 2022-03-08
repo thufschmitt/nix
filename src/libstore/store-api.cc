@@ -415,7 +415,7 @@ OutputPathMap Store::queryDerivationOutputMap(const StorePath & path) {
     return result;
 }
 
-StorePathSet Store::queryDerivationOutputs(const StorePath & path)
+StorePathSet Store::queryDerivationOutputPaths(const StorePath & path)
 {
     auto outputMap = this->queryDerivationOutputMap(path);
     StorePathSet outputPaths;

@@ -326,8 +326,8 @@ public:
        not exist anymore.) */
     virtual StorePathSet queryValidDerivers(const StorePath & path) { return {}; };
 
-    /* Query the outputs of the derivation denoted by `path'. */
-    virtual StorePathSet queryDerivationOutputs(const StorePath & path);
+    /* Query the output paths of the derivation denoted by `path'. */
+    virtual StorePathSet queryDerivationOutputPaths(const StorePath & path);
 
     /* Query the mapping outputName => outputPath for the given derivation. All
        outputs are mentioned so ones mising the mapping are mapped to

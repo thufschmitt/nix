@@ -453,10 +453,10 @@ StorePathSet RemoteStore::queryValidDerivers(const StorePath & path)
 }
 
 
-StorePathSet RemoteStore::queryDerivationOutputs(const StorePath & path)
+StorePathSet RemoteStore::queryDerivationOutputPaths(const StorePath & path)
 {
     if (GET_PROTOCOL_MINOR(getProtocol()) >= 0x16) {
-        return Store::queryDerivationOutputs(path);
+        return Store::queryDerivationOutputPaths(path);
     }
     auto conn(getConnection());
     conn->to << wopQueryDerivationOutputs << printStorePath(path);

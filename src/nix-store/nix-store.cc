@@ -224,7 +224,7 @@ static StorePathSet maybeUseOutputs(const StorePath & storePath, bool useOutput,
         auto drv = store->derivationFromPath(storePath);
         StorePathSet outputs;
         if (forceRealise)
-            return store->queryDerivationOutputs(storePath);
+            return store->queryDerivationOutputPaths(storePath);
         for (auto & i : drv.outputsAndOptPaths(*store)) {
             if (!i.second.second)
                 throw UsageError("Cannot use output path of floating content-addressed derivation until we know what it is (e.g. by building it)");
