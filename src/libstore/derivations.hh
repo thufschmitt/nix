@@ -225,6 +225,7 @@ DrvHashModulo hashDerivationModulo(Store & store, const Derivation & drv, bool m
    Return a map associating each output to a hash that uniquely identifies its
    derivation (modulo the self-references).
  */
+std::map<std::string, Hash> staticOutputHashes(Store& store, const StorePath &);
 std::map<std::string, Hash> staticOutputHashes(Store& store, const Derivation& drv);
 
 /* Memoisation of hashDerivationModulo(). */

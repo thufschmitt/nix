@@ -555,10 +555,10 @@ DrvHashModulo hashDerivationModulo(Store & store, const Derivation & drv, bool m
 }
 
 
+std::map<std::string, Hash> staticOutputHashes(Store & store, const StorePath & path)
+{ return store.getHashModulo(path).hashes; }
 std::map<std::string, Hash> staticOutputHashes(Store & store, const Derivation & drv)
-{
-    return store.getHashModulo(drv).hashes;
-}
+{ return store.getHashModulo(drv).hashes; }
 
 
 bool wantOutput(const std::string & output, const std::set<std::string> & wanted)

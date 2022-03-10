@@ -761,7 +761,8 @@ DrvHashModulo LocalStore::getHashModulo(const StorePath & path)
                         "unknown derivation kind %s in the SQlite database",
                         use.getStr(3));
                 }
-                if (kind.value_or(*currentOutputKind) != *currentOutputKind)
+                if (!kind) kind = *currentOutputKind;
+                if (kind.value() != *currentOutputKind)
                     throw Error("The stored outputs of this derivation have two conflicting kinds");
 
                 hashes.insert({currentOutputName, currentOutputHash});
@@ -1112,8 +1113,7 @@ LocalStore::queryPartialDerivationOutputMap(const StorePath & path_)
     if (!settings.isExperimentalFeatureEnabled(Xp::CaDerivations))
         return outputs;
 
-    auto drv = readInvalidDerivation(path);
-    auto drvHashes = staticOutputHashes(*this, drv);
+    auto drvHashes = staticOutputHashes(*this, path);
     for (auto& [outputName, hash] : drvHashes) {
         auto realisation = queryRealisation(DrvOutput{hash, outputName});
         if (realisation)
