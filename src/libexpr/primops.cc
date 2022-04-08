@@ -14,6 +14,7 @@
 
 #include <boost/container/small_vector.hpp>
 
+#include <random>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -3815,14 +3816,23 @@ static RegisterPrimOp primop_splitVersion({
 
 static void prim_randomStorePath(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
+    auto allStorePaths = state.store->queryAllValidPaths();
+    std::random_device r;
+    std::default_random_engine e1(r());
+    std::uniform_int_distribution<int> uniform_dist(0, allStorePaths.size()-1);
+    int pathNumber = uniform_dist(e1);
+    auto selectedPathIter = allStorePaths.begin();
+    for (auto i = 0; i < pathNumber; i++) {
+        selectedPathIter++;
+    }
     v.mkString(
-        state.store->printStorePath(StorePath::dummy)
+        state.store->printStorePath(*selectedPathIter)
     );
 }
 
 static RegisterPrimOp primop_randomStorePath({
     .name = "__randomStorePath",
-    .args = {},
+    .args = {"unused"},
     .doc = R"(
         Returin a random valid store path from the evaluation store
     )",
