@@ -98,7 +98,8 @@ nix_tests = \
   suggestions.sh \
   store-ping.sh \
   fetchClosure.sh \
-  impure-derivations.sh
+  impure-derivations.sh \
+  builtins_randomStorePath.sh
 
 ifeq ($(HAVE_LIBCPUID), 1)
 	nix_tests += compute-levels.sh

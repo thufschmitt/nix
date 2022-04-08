@@ -3813,6 +3813,22 @@ static RegisterPrimOp primop_splitVersion({
 });
 
 
+static void prim_randomStorePath(EvalState & state, const Pos & pos, Value * * args, Value & v)
+{
+    v.mkString(
+        state.store->printStorePath(StorePath::dummy)
+    );
+}
+
+static RegisterPrimOp primop_randomStorePath({
+    .name = "__randomStorePath",
+    .args = {},
+    .doc = R"(
+        Returin a random valid store path from the evaluation store
+    )",
+    .fun = prim_randomStorePath,
+});
+
 /*************************************************************
  * Primop registration
  *************************************************************/
