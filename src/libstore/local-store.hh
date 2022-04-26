@@ -158,7 +158,7 @@ public:
 
     void addIndirectRoot(const Path & path) override;
 
-    StorePath randomStorePath();
+    virtual StorePath randomStorePath() override;
 
 private:
 

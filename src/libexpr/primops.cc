@@ -3817,24 +3817,9 @@ static RegisterPrimOp primop_splitVersion({
 
 static void prim_randomStorePath(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
-    if (auto * localStore = dynamic_cast<LocalStore *>(&*state.store)) {
-        v.mkString(
-            localStore->printStorePath(localStore->randomStorePath())
-        );
-    } else {
-        auto allStorePaths = state.store->queryAllValidPaths();
-        std::random_device r;
-        std::default_random_engine e1(r());
-        std::uniform_int_distribution<int> uniform_dist(0, allStorePaths.size()-1);
-        int pathNumber = uniform_dist(e1);
-        auto selectedPathIter = allStorePaths.begin();
-        for (auto i = 0; i < pathNumber; i++) {
-            selectedPathIter++;
-        }
-        v.mkString(
-            state.store->printStorePath(*selectedPathIter)
-        );
-    }
+    v.mkString(
+        state.store->printStorePath(state.store->randomStorePath())
+    );
 }
 
 static RegisterPrimOp primop_randomStorePath({

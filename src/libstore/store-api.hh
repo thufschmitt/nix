@@ -184,6 +184,9 @@ public:
        the Nix store. */
     bool isStorePath(std::string_view path) const;
 
+    virtual StorePath randomStorePath()
+    { unsupported("randomStorePath"); }
+
     /* Split a path like /nix/store/<hash>-<name>/<bla> into
        /nix/store/<hash>-<name> and /<bla>. */
     std::pair<StorePath, Path> toStorePath(const Path & path) const;
