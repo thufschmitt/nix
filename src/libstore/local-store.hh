@@ -158,6 +158,8 @@ public:
 
     void addIndirectRoot(const Path & path) override;
 
+    StorePath randomStorePath();
+
 private:
 
     void findTempRoots(Roots & roots, bool censor);

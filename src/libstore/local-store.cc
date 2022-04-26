@@ -64,6 +64,7 @@ struct LocalStore::State::Stmts {
     SQLiteStmt QueryValidPaths;
     SQLiteStmt QueryRealisationReferences;
     SQLiteStmt AddRealisationReference;
+    SQLiteStmt QueryRandomPath;
 };
 
 int getSchema(Path schemaPath)
@@ -351,6 +352,10 @@ LocalStore::LocalStore(const Params & params)
     state->stmts->QueryPathFromHashPart.create(state->db,
         "select path from ValidPaths where path >= ? limit 1;");
     state->stmts->QueryValidPaths.create(state->db, "select path from ValidPaths");
+    state->stmts->QueryRandomPath.create(state->db,
+        R"(
+            select path from ValidPaths order by random() limit 1;
+        )");
     if (settings.isExperimentalFeatureEnabled(Xp::CaDerivations)) {
         state->stmts->RegisterRealisedOutput.create(state->db,
             R"(
@@ -1930,6 +1935,19 @@ void LocalStore::addBuildLog(const StorePath & drvPath, std::string_view log)
 std::optional<std::string> LocalStore::getVersion()
 {
     return nixVersion;
+}
+
+StorePath LocalStore::randomStorePath()
+{
+
+    return retrySQLite<StorePath>([&]() {
+        auto state(_state.lock());
+        auto useRandomPath(state->stmts->QueryRandomPath.use());
+        if (!useRandomPath.next()) {
+            throw Error("trying to get a random path from an empty store");
+        }
+        return parseStorePath(useRandomPath.getStr(0));
+    });
 }
 
 
