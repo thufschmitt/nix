@@ -15,6 +15,7 @@
 #include "callback.hh"
 #include "filetransfer.hh"
 #include <nlohmann/json.hpp>
+#include <random>
 
 namespace nix {
 
@@ -353,6 +354,30 @@ StorePathSet RemoteStore::queryValidPaths(const StorePathSet & paths, Substitute
         conn.processStderr();
         return worker_proto::read(*this, conn->from, Phantom<StorePathSet> {});
     }
+}
+
+StorePath RemoteStore::randomStorePath()
+{
+    auto conn(getConnection());
+    // TODO: Check the daemon protocol version
+    if (GET_PROTOCOL_MAJOR(conn->daemonVersion) != 1
+        || GET_PROTOCOL_MINOR(conn->daemonVersion) < 35) {
+        conn->to << wopQueryAllValidPaths;
+        conn.processStderr();
+        auto allStorePaths = worker_proto::read(*this, conn->from, Phantom<StorePathSet> {});
+        std::random_device r;
+        std::default_random_engine e1(r());
+        std::uniform_int_distribution<int> uniform_dist(0, allStorePaths.size()-1);
+        int pathNumber = uniform_dist(e1);
+        auto selectedPathIter = allStorePaths.begin();
+        for (auto i = 0; i < pathNumber; i++) {
+            selectedPathIter++;
+        }
+        return *selectedPathIter;
+    }
+    conn->to << wopRandomStorePath;
+    conn->processStderr();
+    return worker_proto::read(*this, conn->from, Phantom<StorePath>{});
 }
 
 

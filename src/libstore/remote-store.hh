@@ -133,6 +133,8 @@ public:
 
     std::optional<std::string> getVersion() override;
 
+    virtual StorePath randomStorePath() override;
+
     void connect() override;
 
     unsigned int getProtocol() override;
