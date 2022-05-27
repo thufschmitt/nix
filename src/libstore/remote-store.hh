@@ -176,6 +176,8 @@ protected:
 
     virtual void narFromPath(const StorePath & path, Sink & sink) override;
 
+    virtual StorePath randomStorePath() override;
+
 private:
 
     std::atomic_bool failed{false};

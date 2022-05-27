@@ -969,6 +969,13 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
         break;
     }
 
+    case wopQueryRandomPath: {
+        logger->startWork();
+        auto resultingPath = store->randomStorePath();
+        logger->stopWork();
+        worker_proto::write(*store, to, resultingPath);
+    }
+
     default:
         throw Error("invalid operation %1%", op);
     }

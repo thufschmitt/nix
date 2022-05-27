@@ -1,5 +1,7 @@
 source common.sh
 
+requireDaemonNewerThan 20220525
+
 cd "$TEST_ROOT"
 
 for i in {0..100}; do

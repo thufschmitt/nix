@@ -335,6 +335,17 @@ bool RemoteStore::isValidPathUncached(const StorePath & path)
     return readInt(conn->from);
 }
 
+StorePath RemoteStore::randomStorePath()
+{
+    auto conn(getConnection());
+
+    if (GET_PROTOCOL_MINOR(conn->daemonVersion) < 35)
+        throw Error("The daemon is too old!");
+    conn->to << wopQueryRandomPath;
+    conn->processStderr();
+    return worker_proto::read(*this, conn->from, Phantom<StorePath>{});
+}
+
 
 StorePathSet RemoteStore::queryValidPaths(const StorePathSet & paths, SubstituteFlag maybeSubstitute)
 {
